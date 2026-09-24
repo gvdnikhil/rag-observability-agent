@@ -1,0 +1,10 @@
+fastapi>=0.115
+uvicorn[standard]>=0.34
+pydantic>=2.10
+python-dotenv>=1.0
+openai>=1.58
+google-generativeai>=0.8
+langgraph>=0.2.60
+sentence-transformers>=3.3
+faiss-cpu>=1.12
+numpy>=2.1
