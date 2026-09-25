@@ -9,6 +9,7 @@ import {
 } from "../lib/resumeApi";
 import ChatPanel from "../components/ChatPanel";
 import StatusDot from "../components/StatusDot";
+import ThemeToggle from "../components/ThemeToggle";
 import TracePanel from "../components/TracePanel";
 
 const BUSY_STAGES = [
@@ -180,6 +181,7 @@ export default function ResumeChat() {
           <h1>Chat With Your Resume</h1>
           <p className="subtitle">Upload your resume, ask about it — ephemeral, gone when your session ends.</p>
           <Link className="nav-link" to="/">← Back to Nimbus demo</Link>
+          <Link className="nav-link" to="/about">About / how it works →</Link>
         </div>
         <div className="header-actions">
           {hasResume && (
@@ -188,6 +190,7 @@ export default function ResumeChat() {
             </button>
           )}
           <StatusDot status={status} />
+          <ThemeToggle />
         </div>
       </header>
 
