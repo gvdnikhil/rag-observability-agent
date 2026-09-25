@@ -1,6 +1,6 @@
 import { fetchWithSession } from "./session";
 
-const API_URL = import.meta.env.VITE_RESUME_API_URL || "http://localhost:8001";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 async function handle(res) {
   if (!res.ok) {
@@ -33,7 +33,7 @@ export function uploadResumeText(text) {
 }
 
 export function sendResumeChat(message) {
-  return fetchWithSession(`${API_URL}/api/chat`, {
+  return fetchWithSession(`${API_URL}/api/resume/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message }),

@@ -1,6 +1,9 @@
 import os
 
-SIMILARITY_THRESHOLD = float(os.environ.get("GUARDRAIL_SIMILARITY_THRESHOLD", "0.3"))
+# Default tuned for Nimbus's prose-style docs. The resume agent passes its own
+# (lower) threshold explicitly — short resume fragments score lower even when
+# clearly on-topic, see backend/app/agent/resume_graph.py.
+DEFAULT_THRESHOLD = float(os.environ.get("GUARDRAIL_SIMILARITY_THRESHOLD", "0.3"))
 
 NO_RETRIEVAL_MESSAGE = (
     "I don't have grounded information in my knowledge base to answer that — "
@@ -12,7 +15,7 @@ LOW_CONFIDENCE_MESSAGE = (
 )
 
 
-def check(trace: dict) -> dict:
+def check(trace: dict, threshold: float = DEFAULT_THRESHOLD) -> dict:
     """Refuse to answer instead of letting the model hallucinate when retrieval
     didn't happen or came back weak. Same idea as GuardrailsAI-style output
     validation, without the extra dependency for this MVP.
@@ -23,17 +26,17 @@ def check(trace: dict) -> dict:
             "blocked": True,
             "reason": "no_retrieval",
             "message": NO_RETRIEVAL_MESSAGE,
-            "threshold": SIMILARITY_THRESHOLD,
+            "threshold": threshold,
         }
 
     best_score = max(r["score"] for r in retrieved)
-    if best_score < SIMILARITY_THRESHOLD:
+    if best_score < threshold:
         return {
             "blocked": True,
             "reason": "low_similarity",
             "message": LOW_CONFIDENCE_MESSAGE,
             "best_score": best_score,
-            "threshold": SIMILARITY_THRESHOLD,
+            "threshold": threshold,
         }
 
     return {
@@ -41,5 +44,5 @@ def check(trace: dict) -> dict:
         "reason": None,
         "message": None,
         "best_score": best_score,
-        "threshold": SIMILARITY_THRESHOLD,
+        "threshold": threshold,
     }

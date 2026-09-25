@@ -8,3 +8,5 @@ langgraph>=0.2.60
 sentence-transformers>=3.3
 faiss-cpu>=1.12
 numpy>=2.1
+pypdf>=5.0
+python-multipart>=0.0.9

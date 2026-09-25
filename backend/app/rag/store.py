@@ -2,6 +2,18 @@ import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
+_MODEL_CACHE: dict[str, SentenceTransformer] = {}
+
+
+def _get_model(model_name: str) -> SentenceTransformer:
+    """Every VectorStore (the Nimbus store at boot, and each resume session's own
+    store) shares one loaded model instance instead of each paying the ~300-500MB
+    torch + model load cost separately.
+    """
+    if model_name not in _MODEL_CACHE:
+        _MODEL_CACHE[model_name] = SentenceTransformer(model_name)
+    return _MODEL_CACHE[model_name]
+
 
 class VectorStore:
     """In-memory FAISS index over sentence-transformer embeddings.
@@ -9,7 +21,7 @@ class VectorStore:
     """
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
-        self.model = SentenceTransformer(model_name)
+        self.model = _get_model(model_name)
         self.index: faiss.IndexFlatIP | None = None
         self.chunks: list[dict] = []
 
