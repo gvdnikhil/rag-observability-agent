@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { sendMessage } from "../api";
 import ChatPanel from "../components/ChatPanel";
 import StatusDot from "../components/StatusDot";
+import ThemeToggle from "../components/ThemeToggle";
 import TracePanel from "../components/TracePanel";
 
 const BUSY_STAGES = [
@@ -65,8 +66,12 @@ export default function Home() {
           <h1>Nimbus RAG Assistant</h1>
           <p className="subtitle">An agent that shows its work — retrieval, tool calls, cost, and guardrails, live.</p>
           <Link className="nav-link" to="/resume">Try it on your own resume →</Link>
+          <Link className="nav-link" to="/about">About / how it works →</Link>
         </div>
-        <StatusDot status={status} />
+        <div className="header-actions">
+          <StatusDot status={status} />
+          <ThemeToggle />
+        </div>
       </header>
 
       <main className="app-main">
