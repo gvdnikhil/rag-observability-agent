@@ -13,7 +13,19 @@ function TypingIndicator({ label }) {
   );
 }
 
-export default function ChatPanel({ messages, onSend, busy, busyLabel }) {
+export default function ChatPanel({
+  messages,
+  onSend,
+  busy,
+  busyLabel,
+  emptyHint = (
+    <>
+      Ask something like <em>"What deployment modes does Nimbus support?"</em> or{" "}
+      <em>"What's the weather today?"</em> to see the guardrail refuse an ungrounded question.
+    </>
+  ),
+  placeholder = "Ask about the knowledge base…",
+}) {
   const [input, setInput] = useState("");
   const [pressed, setPressed] = useState(false);
   const scrollRef = useRef(null);
@@ -34,12 +46,7 @@ export default function ChatPanel({ messages, onSend, busy, busyLabel }) {
   return (
     <div className="chat-panel">
       <div className="chat-scroll" ref={scrollRef}>
-        {messages.length === 0 && (
-          <div className="empty-hint enter">
-            Ask something like <em>"What deployment modes does Nimbus support?"</em> or{" "}
-            <em>"What's the weather today?"</em> to see the guardrail refuse an ungrounded question.
-          </div>
-        )}
+        {messages.length === 0 && <div className="empty-hint enter">{emptyHint}</div>}
         {messages.map((m, i) => (
           <div key={i} className={`bubble ${m.role} enter`} style={{ animationDelay: `${Math.min(i, 4) * 30}ms` }}>
             {m.content}
@@ -52,7 +59,7 @@ export default function ChatPanel({ messages, onSend, busy, busyLabel }) {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about the knowledge base…"
+          placeholder={placeholder}
           disabled={busy}
         />
         <button type="submit" disabled={busy || !input.trim()} className={pressed ? "pressed" : ""}>

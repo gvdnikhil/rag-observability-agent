@@ -1,6 +1,10 @@
 import os
 
-SIMILARITY_THRESHOLD = float(os.environ.get("GUARDRAIL_SIMILARITY_THRESHOLD", "0.3"))
+# Short, keyword-heavy resume fragments embed weaker against natural-language queries than
+# full prose does (all-MiniLM-L6-v2 scores clearly-on-topic resume chunks as low as ~0.15-0.25
+# in testing), so this service's default is lower than a prose-corpus guardrail would use.
+# Configurable so it can be tuned without a code change.
+SIMILARITY_THRESHOLD = float(os.environ.get("GUARDRAIL_SIMILARITY_THRESHOLD", "0.15"))
 
 NO_RETRIEVAL_MESSAGE = (
     "I don't have grounded information in my knowledge base to answer that — "

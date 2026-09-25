@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
-import { sendMessage } from "./api";
-import ChatPanel from "./components/ChatPanel";
-import StatusDot from "./components/StatusDot";
-import TracePanel from "./components/TracePanel";
+import { Link } from "react-router-dom";
+import { sendMessage } from "../api";
+import ChatPanel from "../components/ChatPanel";
+import StatusDot from "../components/StatusDot";
+import TracePanel from "../components/TracePanel";
 
 const BUSY_STAGES = [
   { at: 0, label: "thinking", status: "thinking" },
@@ -10,7 +11,7 @@ const BUSY_STAGES = [
   { at: 1800, label: "checking guardrails…", status: "guardrail" },
 ];
 
-export default function App() {
+export default function Home() {
   const [messages, setMessages] = useState([]);
   const [trace, setTrace] = useState(null);
   const [summary, setSummary] = useState(null);
@@ -63,6 +64,7 @@ export default function App() {
         <div>
           <h1>Nimbus RAG Assistant</h1>
           <p className="subtitle">An agent that shows its work — retrieval, tool calls, cost, and guardrails, live.</p>
+          <Link className="nav-link" to="/resume">Try it on your own resume →</Link>
         </div>
         <StatusDot status={status} />
       </header>
