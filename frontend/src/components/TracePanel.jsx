@@ -22,7 +22,6 @@ export default function TracePanel({ trace, summary, busy }) {
   }
 
   const verdict = summary?.guardrail_verdict;
-  const threshold = verdict?.threshold ?? 0.3;
 
   return (
     <div className={`trace-panel ${busy ? "trace-stale" : ""}`}>
@@ -39,7 +38,7 @@ export default function TracePanel({ trace, summary, busy }) {
         <div className={`verdict-badge enter ${verdict.blocked ? "blocked" : "passed"}`}>
           {verdict.blocked ? "✕ guardrail blocked" : "✓ grounded"}
           {typeof verdict.best_score === "number" && (
-            <span className="verdict-score"> · best match {verdict.best_score.toFixed(2)}</span>
+            <span className="verdict-score"> · entailment confidence {verdict.best_score.toFixed(2)}</span>
           )}
         </div>
       )}
@@ -65,7 +64,7 @@ export default function TracePanel({ trace, summary, busy }) {
               <div key={i} className="chunk-card enter" style={{ animationDelay: `${i * 70}ms` }}>
                 <div className="chunk-head">
                   <span className="chunk-source">{r.source}</span>
-                  <ScoreBar score={r.score} threshold={threshold} />
+                  <ScoreBar score={r.score} />
                 </div>
                 <p className="chunk-text">{r.text}</p>
               </div>

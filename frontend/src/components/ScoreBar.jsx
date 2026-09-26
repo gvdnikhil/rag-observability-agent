@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 
-export default function ScoreBar({ score, threshold = 0.3 }) {
+// Fixed cosmetic bands for retrieval relevance — independent of the guardrail's
+// groundedness threshold, which now scores the *answer* against the context via
+// NLI entailment, a different metric than a chunk's raw retrieval similarity.
+export default function ScoreBar({ score }) {
   const [width, setWidth] = useState(0);
   const pct = Math.max(0, Math.min(100, score * 100));
-  const tier = score >= threshold + 0.15 ? "high" : score >= threshold ? "mid" : "low";
+  const tier = score >= 0.5 ? "high" : score >= 0.25 ? "mid" : "low";
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setWidth(pct));

@@ -95,7 +95,26 @@ sequenceDiagram
 
 `sessionStorage` (not `localStorage`) holds the session id client-side, so it disappears when the tab closes — the server-side TTL sweep and the "Clear my data" button cover the cases a closed tab can't (multiple tabs, idle-but-open tabs, crashes).
 
-Every pass through an `agent` node is one LLM call and is recorded as one trace step (latency + token usage + whether it called a tool). The `guardrail` node runs exactly once, after the loop ends, and inspects everything that was retrieved across all iterations — not just the last one.
+Every pass through an `agent` node is one LLM call and is recorded as one trace step (latency + token usage + whether it called a tool). The `guardrail` node runs exactly once, after the loop ends, and checks the *final answer* — not just whether retrieval happened.
+
+### Guardrail: three configurable strategies (`backend/app/services/guardrails.py`, `backend/app/config/guardrails.py`)
+
+```mermaid
+flowchart LR
+    A[retrieved chunks] --> C{did retrieval happen at all?}
+    C -- no --> Refuse1[blocked: no_retrieval]
+    C -- yes --> S{GUARDRAIL_STRATEGY}
+    S -- retrieval_threshold --> R[cosine similarity of the\nsearch query vs. chunks]
+    S -- nli_entailment --> N[CrossEncoder NLI model\nper answer-sentence x chunk pair]
+    S -- hhem --> H[Vectara HHEM\nsummarization-tuned factual consistency]
+    R --> T{score >= threshold?}
+    N --> T
+    H --> T
+    T -- no --> Refuse2[blocked]
+    T -- yes --> Pass[answer ships]
+```
+
+`retrieval_threshold` only checks that *something* relevant was found — it never looks at whether the generated answer is actually supported by it. `nli_entailment` and `hhem` both score the *answer itself* against its context instead of the query, which is the real question a groundedness guardrail should be asking — see `config/guardrails.py` for why `retrieval_threshold` is still the default despite that.
 
 ## Why these specific choices
 
@@ -108,25 +127,41 @@ Every pass through an `agent` node is one LLM call and is recorded as one trace 
 | **LangGraph for orchestration** | The retrieve → guardrail → generate loop is genuinely stateful (it can loop), which is what LangGraph is for — a plain function chain can't express "call the tool again if the first search wasn't enough." |
 | **LangGraph `MemorySaver` for the resume agent's conversation memory** | Conversation state (per browser session) is owned by the checkpointer, keyed by `thread_id = session_id`, instead of the client resending a growing `history` array every request. |
 | **Custom `LLMProvider` abstraction instead of calling Groq's SDK directly** | Swapping to OpenAI or Gemini is an env var change (`LLM_PROVIDER`), not a rewrite — see `backend/app/llm/`. |
-| **Guardrail is a similarity threshold, not GuardrailsAI** | Same *category* of protection (refuse instead of hallucinate) without the extra dependency weight. Tried adopting `guardrails-ai`'s groundedness validator directly — it pulls in a heavy dependency tree (litellm, boto3, a full OTel exporter stack) and downgrades packages this project depends on, and the specific hub validator failed to download in testing. A lighter NLI-based entailment check via `sentence-transformers`' `CrossEncoder` (zero new dependencies) is the planned real upgrade. |
-| **Two different guardrail thresholds, not one** | Nimbus's prose docs and the Resume Agent's short resume fragments score very differently against the same embedding model — short fragments scored as low as ~0.15-0.25 in testing even when clearly on-topic. `guardrails.check()` takes an explicit `threshold` per call; Nimbus defaults to 0.3, the Resume Agent to 0.15, both configurable via env vars. |
+| **Guardrail strategy is a config switch, not a single hard-coded check** | Went through three approaches trying to get groundedness checking right (see issue #4): a cosine-similarity retrieval-confidence check, a generic NLI entailment cross-encoder, and Vectara's purpose-built HHEM model. Rather than replace one with the next each time, all three live side by side behind `GUARDRAIL_STRATEGY` in `config/guardrails.py` — nothing gets thrown away when a new approach is tried, and the tradeoffs of each are documented right where you'd flip the switch. |
+| **`retrieval_threshold` is the default** | Cheapest and most reliable of the three in testing. It only checks that *something* relevant was found (not whether the answer is truly supported by it), but the alternatives had real problems: generic NLI models under-score legitimate paraphrasing (a correct answer scored 0.01 entailment against its own correct source), and HHEM — the model actually built for this — currently crashes on this project's `transformers` version. |
+| **Two different retrieval thresholds, not one** | Nimbus's prose docs and the Resume Agent's short fragments score very differently against the same embedding model for the *same reason* an answer's phrasing affects NLI scoring — short, keyword-heavy text and full sentences aren't comparable inputs to any similarity-based check. `GUARDRAIL_SIMILARITY_THRESHOLD_NIMBUS` (0.3) and `_RESUME` (0.15) are separate, both configurable. |
 | **Trace returned inline in the API response, not shipped to Prometheus/Grafana** | The audience for the trace is the end user, not an ops team — so it's rendered directly in the product instead of a separate observability stack. |
 
 ## Project structure
 
+Standard FastAPI production layout — routers, services, and config each have one job, so nothing is both an HTTP handler and a business-logic function at once.
+
 ```
 backend/
   app/
-    main.py                 FastAPI app — both route groups, both graphs built at startup
-    agent/graph.py           Nimbus LangGraph agent loop + system prompt + tool schema
-    agent/resume_graph.py    Resume Agent LangGraph agent loop, + MemorySaver checkpointer
-    llm/                     provider abstraction (base.py, openai_compatible.py, gemini_provider.py, factory.py)
-    rag/                     ingest.py (chunking) + store.py (FAISS wrapper, shared model cache)
-    guardrails.py            grounding check, threshold passed per call site
-    observability.py         trace object + summary stats
-    sessions.py               in-memory SESSIONS dict + TTL sweep (Resume Agent)
-    resume_parse.py          PDF -> text (pypdf), with logging + configurable extraction
-    data/docs/               Nimbus's sample knowledge base (swap for your own notes)
+    main.py                    FastAPI app instance, router registration, startup wiring — no business logic
+    schemas.py                 all Pydantic request models
+    config/                    settings, section by section — every value has a sample default, override via env var
+      app.py                    LOG_LEVEL, CORS_ORIGINS
+      llm.py                    LLM_PROVIDER, LLM_API_KEY, LLM_MODEL, per-provider defaults
+      guardrails.py             GUARDRAIL_STRATEGY + settings for all three strategies
+      session.py                SESSION_TTL_SECONDS, SESSION_SWEEP_INTERVAL_SECONDS
+      resume.py                 RESUME_MAX_PAGES, RESUME_PDF_EXTRACTION_MODE
+    api/                       HTTP layer — routers only
+      nimbus.py                  POST /api/chat
+      resume.py                  POST /api/resume/*, GET+DELETE /api/session, POST /api/resume/chat
+      health.py                  GET /api/health
+    agents/                    LangGraph graphs
+      nimbus_graph.py            search_docs tool, no memory
+      resume_graph.py            search_resume tool, MemorySaver checkpointer
+    services/                  business logic, framework-agnostic
+      rag/                       ingest.py (chunking) + store.py (FAISS wrapper, shared model cache)
+      guardrails.py              the three-strategy dispatcher
+      sessions.py                in-memory SESSIONS dict + TTL sweep
+      resume_parse.py            PDF -> text (pypdf)
+      observability.py           trace object + summary stats
+    llm/                       provider abstraction (base.py, openai_compatible.py, gemini_provider.py, factory.py)
+    data/docs/                 Nimbus's sample knowledge base (swap for your own notes)
 
 frontend/                 One React app, three routes
   src/
@@ -178,11 +213,19 @@ LLM_MODEL=...        # optional, sensible default per provider
 
 ## Configuration reference
 
-Set in `backend/.env`:
+Every setting lives in `backend/app/config/` (one file per section — `app.py`, `llm.py`, `guardrails.py`, `session.py`, `resume.py`), each documented with sample values inline. Override any of them via `backend/.env`:
 ```
 LOG_LEVEL=INFO
-GUARDRAIL_SIMILARITY_THRESHOLD=0.3            # Nimbus guardrail threshold
-RESUME_GUARDRAIL_SIMILARITY_THRESHOLD=0.15    # Resume Agent guardrail threshold (tuned lower for short fragments)
+
+# Guardrail — see config/guardrails.py for the tradeoffs of each strategy
+GUARDRAIL_STRATEGY=retrieval_threshold   # retrieval_threshold | nli_entailment | hhem
+GUARDRAIL_SIMILARITY_THRESHOLD_NIMBUS=0.3
+GUARDRAIL_SIMILARITY_THRESHOLD_RESUME=0.15
+GUARDRAIL_NLI_MODEL=cross-encoder/nli-deberta-v3-xsmall
+GUARDRAIL_ENTAILMENT_THRESHOLD=0.3
+GUARDRAIL_HHEM_MODEL=vectara/hallucination_evaluation_model
+GUARDRAIL_HHEM_THRESHOLD=0.5
+
 SESSION_TTL_SECONDS=1800                      # idle resume sessions swept after this many seconds
 SESSION_SWEEP_INTERVAL_SECONDS=300            # how often the sweep runs
 RESUME_MAX_PAGES=20                           # PDF pages read per upload

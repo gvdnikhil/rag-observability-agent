@@ -1,6 +1,5 @@
 import json
 import operator
-import os
 import time
 from typing import Annotated, TypedDict
 
@@ -8,14 +7,10 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
-from .. import guardrails, sessions
 from ..llm.factory import get_provider
+from ..services import guardrails, sessions
 
 MAX_STEPS = 4
-
-# Resume fragments are short/keyword-heavy and score lower than Nimbus's prose docs
-# even when clearly on-topic — see backend/app/guardrails.py's DEFAULT_THRESHOLD comment.
-GUARDRAIL_THRESHOLD = float(os.environ.get("RESUME_GUARDRAIL_SIMILARITY_THRESHOLD", "0.15"))
 
 SEARCH_TOOL = {
     "type": "function",
@@ -104,7 +99,8 @@ def build_graph():
         return {"messages": new_messages, "trace": trace, "steps": steps}
 
     def guardrail_node(state: AgentState) -> AgentState:
-        verdict = guardrails.check(state["trace"], threshold=GUARDRAIL_THRESHOLD)
+        answer = state["messages"][-1]["content"] or ""
+        verdict = guardrails.check(state["trace"], answer, domain="resume")
         state["trace"]["guardrail"] = verdict
         new_messages = []
         if verdict["blocked"]:

@@ -1,15 +1,15 @@
 import asyncio
 import logging
-import os
 import time
 from typing import Callable
 
+from ..config import session as session_config
 from .rag.store import VectorStore
 
 logger = logging.getLogger(__name__)
 
-TTL_SECONDS = int(os.environ.get("SESSION_TTL_SECONDS", str(30 * 60)))
-SWEEP_INTERVAL_SECONDS = int(os.environ.get("SESSION_SWEEP_INTERVAL_SECONDS", str(5 * 60)))
+TTL_SECONDS = session_config.TTL_SECONDS
+SWEEP_INTERVAL_SECONDS = session_config.SWEEP_INTERVAL_SECONDS
 
 
 class Session:
