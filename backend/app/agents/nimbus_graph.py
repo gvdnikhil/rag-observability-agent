@@ -4,9 +4,9 @@ from typing import TypedDict
 
 from langgraph.graph import END, StateGraph
 
-from .. import guardrails
 from ..llm.factory import get_provider
-from ..rag.store import VectorStore
+from ..services import guardrails
+from ..services.rag.store import VectorStore
 
 MAX_STEPS = 4
 
@@ -92,7 +92,8 @@ def build_graph(store: VectorStore):
         return state
 
     def guardrail_node(state: AgentState) -> AgentState:
-        verdict = guardrails.check(state["trace"])
+        answer = state["messages"][-1]["content"] or ""
+        verdict = guardrails.check(state["trace"], answer, domain="nimbus")
         state["trace"]["guardrail"] = verdict
         if verdict["blocked"]:
             state["messages"].append({"role": "assistant", "content": verdict["message"]})

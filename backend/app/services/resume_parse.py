@@ -1,15 +1,16 @@
 import io
 import logging
-import os
 
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
+from ..config import resume as resume_config
+
 logger = logging.getLogger(__name__)
 
-DEFAULT_MAX_PAGES = int(os.environ.get("RESUME_MAX_PAGES", "20"))
-DEFAULT_EXTRACTION_MODE = os.environ.get("RESUME_PDF_EXTRACTION_MODE", "plain")  # "plain" or "layout"
-DEFAULT_PAGE_SEPARATOR = "\n\n"
+DEFAULT_MAX_PAGES = resume_config.MAX_PAGES
+DEFAULT_EXTRACTION_MODE = resume_config.PDF_EXTRACTION_MODE
+DEFAULT_PAGE_SEPARATOR = resume_config.PAGE_SEPARATOR
 
 
 class ResumeParseError(Exception):
